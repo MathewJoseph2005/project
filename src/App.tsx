@@ -5,6 +5,7 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Game } from './pages/Game';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { UserStats } from './pages/UserStats';
 
 function App() {
   return (
@@ -21,6 +22,13 @@ function App() {
             return (
               <ProtectedRoute>
                 <Game />
+              </ProtectedRoute>
+            );
+          }
+          if (currentPath === '/stats') {
+            return (
+              <ProtectedRoute>
+                <UserStats />
               </ProtectedRoute>
             );
           }
