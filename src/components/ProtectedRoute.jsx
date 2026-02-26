@@ -1,0 +1,24 @@
+import { Navigate } from './Router';
+import { useAuth } from '../context/AuthContext';
+
+export const ProtectedRoute = ({ children, requireAdmin = false }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/login" />;
+  }
+
+  if (requireAdmin && !user.isAdmin) {
+    return <Navigate to="/game" />;
+  }
+
+  return children;
+};
