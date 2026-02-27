@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export const Router = ({ children }) => {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -36,4 +36,11 @@ export const Navigate = ({ to }) => {
   }, [to]);
 
   return null;
+};
+
+export const useNavigate = () => {
+  return (to) => {
+    window.history.pushState({}, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 };

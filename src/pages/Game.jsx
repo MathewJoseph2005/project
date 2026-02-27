@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link } from '../components/Router';
 import { perfMonitor } from '../utils/performanceMonitor';
@@ -13,26 +13,25 @@ export const Game = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [canvasSize, setCanvasSize] = useState(400);
   const [gameTime, setGameTime] = useState(0);
-  const [useJoystick, setUseJoystick] = useState(false);
-  const [controlType, setControlType] = useState('swipe'); // 'swipe', 'joystick', 'dpad', 'touchpad'
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [controlType, setControlType] = useState(null);
+  const [isMobile, setIsMobile] = useState(() => {
+    const width = window.innerWidth < 768;
+    const touchCapable = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
+    return width && touchCapable();
+  });
   const touchStartPos = useRef({ x: 0, y: 0 });
   const gameStateRef = useRef({});
   const gameStartTimeRef = useRef(null);
   const pacmanDirectionRef = useRef('right');
 
-  // Game timer
   useEffect(() => {
     if (!gameStarted || gameOver) return;
-
     const interval = setInterval(() => {
       setGameTime(prev => prev + 1);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [gameStarted, gameOver]);
 
-  // Handle joystick direction changes
   const handleJoystickDirection = (direction) => {
     if (direction === 'idle') return;
     pacmanDirectionRef.current = direction;
@@ -40,16 +39,18 @@ export const Game = () => {
       gameStateRef.current.pacman.direction = direction;
     }
   };
+
   useEffect(() => {
     const updateCanvasSize = () => {
       const isMobileScreen = window.innerWidth < 768;
-      const isTablet = window.innerWidth < 1024;
+      const touchCapable = () => (('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0));
+      const isDeviceMobile = isMobileScreen && touchCapable();
       
-      setIsMobile(isMobileScreen);
+      setIsMobile(isDeviceMobile);
       
       if (isMobileScreen) {
         setCanvasSize(Math.min(window.innerWidth - 32, 300));
-      } else if (isTablet) {
+      } else if (window.innerWidth < 1024) {
         setCanvasSize(350);
       } else {
         setCanvasSize(400);
@@ -93,156 +94,125 @@ export const Game = () => {
       }
     }
 
-    const isWall = (x, y) => {
-      return walls.some(wall => wall.x === x && wall.y === y);
-    };
+    pacman.direction = pacmanDirectionRef.current;
 
-    const draw = () => {
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvasSize, canvasSize);
-
-      walls.forEach(wall => {
-        ctx.fillStyle = '#0000FF';
-        ctx.fillRect(wall.x * gridSize, wall.y * gridSize, gridSize, gridSize);
-      });
-
-      dots.forEach(dot => {
-        ctx.fillStyle = '#FFD700';
-        ctx.beginPath();
-        ctx.arc(
-          dot.x * gridSize + gridSize / 2,
-          dot.y * gridSize + gridSize / 2,
-          3,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      });
-
-      ctx.fillStyle = '#FFFF00';
-      ctx.beginPath();
-      ctx.arc(
-        pacman.x * gridSize + gridSize / 2,
-        pacman.y * gridSize + gridSize / 2,
-        gridSize / 2 - 2,
-        0.2 * Math.PI,
-        1.8 * Math.PI
-      );
-      ctx.lineTo(pacman.x * gridSize + gridSize / 2, pacman.y * gridSize + gridSize / 2);
-      ctx.fill();
-
-      ghosts.forEach(ghost => {
-        ctx.fillStyle = ghost.color;
-        ctx.beginPath();
-        ctx.arc(
-          ghost.x * gridSize + gridSize / 2,
-          ghost.y * gridSize + gridSize / 2,
-          gridSize / 2 - 2,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      });
-    };
+    let gameActive = true;
 
     const movePacman = () => {
-      let newX = pacman.x;
-      let newY = pacman.y;
+      const { x, y, direction } = pacman;
+      let newX = x,
+          newY = y;
 
-      if (pacman.direction === 'up') newY -= 1;
-      if (pacman.direction === 'down') newY += 1;
-      if (pacman.direction === 'left') newX -= 1;
-      if (pacman.direction === 'right') newX += 1;
+      if (direction === 'up') newY = Math.max(0, y - 1);
+      if (direction === 'down') newY = Math.min(19, y + 1);
+      if (direction === 'left') newX = Math.max(0, x - 1);
+      if (direction === 'right') newX = Math.min(19, x + 1);
 
-      if (!isWall(newX, newY)) {
+      const isWall = walls.some(w => w.x === newX && w.y === newY);
+      if (!isWall) {
         pacman.x = newX;
         pacman.y = newY;
+      }
 
-        const dotIndex = dots.findIndex(dot => dot.x === newX && dot.y === newY);
-        if (dotIndex !== -1) {
-          dots.splice(dotIndex, 1);
-          setScore(prev => prev + 10);
-        }
+      const dotIndex = dots.findIndex(d => d.x === pacman.x && d.y === pacman.y);
+      if (dotIndex !== -1) {
+        setScore(prev => prev + 10);
+        dots.splice(dotIndex, 1);
+      }
 
-        if (dots.length === 0) {
-          setGameOver(true);
-        }
+      const caughtByGhost = ghosts.some(g => g.x === pacman.x && g.y === pacman.y);
+      if (caughtByGhost) {
+        gameActive = false;
+        setGameOver(true);
+      }
+
+      if (dots.length === 0) {
+        gameActive = false;
+        setGameOver(true);
       }
     };
 
     const moveGhosts = () => {
       ghosts.forEach(ghost => {
         const directions = ['up', 'down', 'left', 'right'];
-        const randomDir = directions[Math.floor(Math.random() * directions.length)];
+        const randomDirection = directions[Math.floor(Math.random() * directions.length)];
+        
+        let newX = ghost.x,
+            newY = ghost.y;
 
-        let newX = ghost.x;
-        let newY = ghost.y;
+        if (randomDirection === 'up') newY = Math.max(0, ghost.y - 1);
+        if (randomDirection === 'down') newY = Math.min(19, ghost.y + 1);
+        if (randomDirection === 'left') newX = Math.max(0, ghost.x - 1);
+        if (randomDirection === 'right') newX = Math.min(19, ghost.x + 1);
 
-        if (randomDir === 'up') newY -= 1;
-        if (randomDir === 'down') newY += 1;
-        if (randomDir === 'left') newX -= 1;
-        if (randomDir === 'right') newX += 1;
-
-        if (!isWall(newX, newY)) {
+        const isWall = walls.some(w => w.x === newX && w.y === newY);
+        if (!isWall) {
           ghost.x = newX;
           ghost.y = newY;
-        }
-
-        if (ghost.x === pacman.x && ghost.y === pacman.y) {
-          setGameOver(true);
         }
       });
     };
 
-    const handleKeyPress = (e) => {
-      const keys = { 'ArrowUp': 'up', 'ArrowDown': 'down', 'ArrowLeft': 'left', 'ArrowRight': 'right' };
-      if (keys[e.key]) {
-        pacman.direction = keys[e.key];
-        e.preventDefault();
+    const draw = () => {
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+      walls.forEach(wall => {
+        ctx.fillStyle = '#0ea5e9';
+        ctx.fillRect(wall.x * gridSize, wall.y * gridSize, gridSize, gridSize);
+      });
+
+      dots.forEach(dot => {
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(dot.x * gridSize + gridSize / 2, dot.y * gridSize + gridSize / 2, 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.fillStyle = '#ff00ff';
+      ctx.beginPath();
+      ctx.arc(pacman.x * gridSize + gridSize / 2, pacman.y * gridSize + gridSize / 2, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      ghosts.forEach(ghost => {
+        ctx.fillStyle = ghost.color;
+        ctx.fillRect(ghost.x * gridSize, ghost.y * gridSize, gridSize, gridSize);
+      });
+
+      ctx.strokeStyle = '#0ea5e9';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, canvasSize, canvasSize);
+    };
+
+    const gameLoop = setInterval(() => {
+      if (!gameActive) {
+        clearInterval(gameLoop);
+        return;
       }
-    };
 
-    const handleTouchStart = (e) => {
-      touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    };
+      movePacman();
+      moveGhosts();
+      draw();
+    }, 100);
 
-    const handleTouchMove = (e) => {
-      if (e.touches.length !== 1) return;
-      const touch = e.touches[0];
-      const deltaX = touch.clientX - touchStartPos.current.x;
-      const deltaY = touch.clientY - touchStartPos.current.y;
-      const minDistance = 30;
+    draw();
 
-      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > minDistance) {
-        pacman.direction = deltaX > 0 ? 'right' : 'left';
-        e.preventDefault();
-      } else if (Math.abs(deltaY) > minDistance) {
-        pacman.direction = deltaY > 0 ? 'down' : 'up';
-        e.preventDefault();
+    const handleKeyPress = (e) => {
+      const directionMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+      const direction = directionMap[e.key];
+      if (direction) {
+        pacmanDirectionRef.current = direction;
+        pacman.direction = direction;
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
-    canvas.addEventListener('touchstart', handleTouchStart, false);
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-
-    const gameLoop = setInterval(() => {
-      if (!gameOver) {
-        movePacman();
-        moveGhosts();
-        draw();
-      }
-    }, 200);
-
-    draw();
 
     return () => {
       clearInterval(gameLoop);
       window.removeEventListener('keydown', handleKeyPress);
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
     };
-  }, [gameStarted, gameOver, canvasSize]);
+  }, [gameStarted, canvasSize]);
 
   const startGame = () => {
     setGameStarted(true);
@@ -257,14 +227,18 @@ export const Game = () => {
     setTimeout(() => startGame(), 100);
   };
 
-  // Record game stats when game ends
   useEffect(() => {
     if (gameOver && gameStarted) {
       const duration = gameTime;
-      const won = score > 0; // Won if collected at least one dot
+      const won = score > 0;
       perfMonitor.recordGameSession(score, duration, won);
     }
   }, [gameOver]);
+
+  const isJoystickActive = isMobile && gameStarted && (controlType === null || controlType === 'joystick');
+  const isDPadActive = isMobile && gameStarted && controlType === 'dpad';
+  const isTouchpadActive = isMobile && gameStarted && controlType === 'touchpad';
+  const isSwipeActive = isMobile && gameStarted && controlType === 'swipe';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex flex-col">
@@ -277,47 +251,42 @@ export const Game = () => {
             <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Pac-Man Arena</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <span className="text-xs sm:text-sm text-slate-300 px-3 py-1 bg-slate-700/30 rounded-full flex-shrink-0">👤 {user?.username}</span>
-            <Link
-              to="/stats"
-              className="btn-secondary text-xs sm:text-sm font-medium flex items-center gap-1 px-3 py-2"
-            >
+            <span className="text-xs sm:text-sm text-slate-300 px-3 py-1 bg-slate-700/30 rounded-full flex-shrink-0">
+              {user?.username}
+            </span>
+            <Link to="/stats" className="btn-secondary text-xs sm:text-sm font-medium flex items-center gap-1 px-3 py-2">
               <BarChart3 size={14} />
               <span className="hidden sm:inline">Stats</span>
             </Link>
             {user?.isAdmin && (
-              <Link
-                to="/admin"
-                className="btn-primary text-xs sm:text-sm font-medium px-3 py-2"
-              >
+              <Link to="/admin" className="btn-primary text-xs sm:text-sm font-medium px-3 py-2">
                 Admin
               </Link>
             )}
-            <button
-              onClick={logout}
-              className="btn-danger text-xs sm:text-sm font-medium px-3 py-2"
-            >
+            <button onClick={logout} className="btn-danger text-xs sm:text-sm font-medium px-3 py-2">
               Exit
             </button>
           </div>
         </div>
       </nav>
 
-      <div className="flex-1 container mx-auto p-4 sm:p-8 flex flex-col items-center justify-center">
+      <div className="flex-1 container mx-auto p-4 sm:p-8 flex flex-col items-center justify-center gap-4 sm:gap-6">
         {/* Stats Card */}
-        <div className="card mb-8 max-w-sm w-full p-6 sm:p-8 border-slate-700/50 backdrop-blur-xl shadow-xl shadow-blue-500/10">
-          <div className="space-y-4">
+        <div className="card w-full max-w-sm backdrop-blur-xl shadow-2xl shadow-blue-500/20 border border-slate-600/30 p-6 sm:p-8 bg-gradient-to-br from-slate-800/80 to-slate-900/60">
+          <div className="space-y-5">
             {/* Score Display */}
-            <div className="flex items-center justify-between pb-4 border-b border-slate-700/50">
-              <span className="text-slate-300 text-sm font-semibold uppercase tracking-wider">Score</span>
-              <span className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-yellow-400 via-orange-300 to-pink-400 bg-clip-text text-transparent">{score}</span>
+            <div className="flex items-center justify-between pb-5 border-b border-slate-700/50">
+              <span className="text-slate-300 text-xs sm:text-sm font-bold uppercase tracking-wider">Score</span>
+              <span className="text-5xl sm:text-7xl font-black bg-gradient-to-r from-yellow-400 via-orange-300 to-red-400 bg-clip-text text-transparent drop-shadow-lg">
+                {score}
+              </span>
             </div>
             
             {/* Time Display */}
             {gameStarted && !gameOver && (
-              <div className="flex items-center justify-between py-3 px-4 bg-gradient-to-r from-emerald-500/10 to-cyan-500/10 rounded-lg border border-emerald-500/20">
-                <span className="text-slate-300 text-sm font-semibold">⏱️ Timer</span>
-                <span className="text-3xl font-bold text-emerald-400">{gameTime}s</span>
+              <div className="flex items-center justify-between py-4 px-4 bg-gradient-to-r from-emerald-500/15 to-cyan-500/15 rounded-xl border border-emerald-500/30 backdrop-blur shadow-lg">
+                <span className="text-slate-300 text-xs sm:text-sm font-bold uppercase tracking-wider">Timer</span>
+                <span className="text-3xl sm:text-4xl font-black text-emerald-400 drop-shadow-md">{gameTime}s</span>
               </div>
             )}
             
@@ -325,29 +294,36 @@ export const Game = () => {
             {!gameStarted && !gameOver && (
               <button
                 onClick={startGame}
-                className="btn-success w-full mt-6 text-lg font-bold py-4 relative overflow-hidden group"
+                className="btn-success w-full mt-8 text-lg sm:text-xl font-black py-5 sm:py-6 relative overflow-hidden group rounded-xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/50 transition-all duration-300"
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                <span className="relative flex items-center justify-center gap-2">
-                  🎮 Start Game
+                <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <span className="relative flex items-center justify-center gap-3">
+                  <span className="text-2xl">🎮</span>
+                  <span>START GAME</span>
                 </span>
               </button>
             )}
             
             {/* Game Over State */}
             {gameOver && (
-              <div className="space-y-4 mt-6">
-                <div className="text-center p-4 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20">
-                  <p className="text-2xl sm:text-3xl font-bold">{score > 0 ? '🎉 Game Over!' : '👻 Caught!'}</p>
-                  <p className="text-slate-300 text-sm mt-2">{score > 0 ? 'Great job collecting dots!' : 'A ghost caught you!'}</p>
+              <div className="space-y-5 mt-8">
+                <div className="text-center p-6 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 backdrop-blur shadow-lg">
+                  <p className="text-3xl sm:text-4xl font-black mb-2">{score > 0 ? '🎉' : '👻'}</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-transparent bg-gradient-to-r from-amber-300 to-orange-300 bg-clip-text">
+                    {score > 0 ? 'Game Over!' : 'Caught!'}
+                  </p>
+                  <p className="text-slate-300 text-sm mt-3">
+                    {score > 0 ? 'Great job collecting dots!' : 'A ghost caught you!'}
+                  </p>
                 </div>
                 <button
                   onClick={restartGame}
-                  className="btn-success w-full text-lg font-bold py-3 relative overflow-hidden group"
+                  className="btn-success w-full text-lg sm:text-xl font-black py-5 relative overflow-hidden group rounded-xl shadow-xl shadow-green-500/30 hover:shadow-2xl hover:shadow-green-500/50 transition-all duration-300"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-                  <span className="relative flex items-center justify-center gap-2">
-                    🔄 Play Again
+                  <div className="absolute inset-0 bg-gradient-to-r from-green-600 to-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  <span className="relative flex items-center justify-center gap-3">
+                    <span className="text-2xl">🔄</span>
+                    <span>PLAY AGAIN</span>
                   </span>
                 </button>
               </div>
@@ -356,98 +332,131 @@ export const Game = () => {
         </div>
 
         {/* Canvas */}
-        <div className="flex justify-center mb-8 relative w-full max-w-md mx-auto">
-          <div className="relative w-full px-4">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-2xl blur-2xl opacity-30 transition-opacity duration-300"></div>
+        <div className="flex justify-center w-full px-4">
+          <div className="relative w-full rounded-3xl overflow-hidden max-w-md">
+            <div className="absolute -inset-2 bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 rounded-3xl blur-2xl opacity-50 animate-pulse" style={{animationDuration: '4s'}}></div>
             <canvas
               ref={canvasRef}
               width={canvasSize}
               height={canvasSize}
-              className="relative w-full block border-2 border-blue-500/60 rounded-2xl touch-none shadow-xl shadow-blue-500/30 bg-gradient-to-br from-slate-700/50 to-slate-600/50"
-              style={{ maxWidth: '100%', height: 'auto', aspectRatio: '1' }}
+              className="relative w-full block border-4 border-blue-400/60 rounded-3xl touch-none shadow-2xl shadow-blue-500/40 bg-gradient-to-br from-slate-800 to-slate-900"
             />
           </div>
         </div>
 
-          {/* Control Type Selector for Mobile */}
-          {isMobile && gameStarted && (
-            <div className="mb-6 w-full max-w-md mx-auto">
-              <p className="text-slate-400 text-xs text-center mb-3 font-semibold">Choose your control style:</p>
-              <div className="flex gap-2 justify-center flex-wrap px-4">
+        {/* Control Type Selector */}
+        {isMobile && gameStarted && (
+          <div className="w-full max-w-2xl mx-auto mb-6 px-4">
+            <div className="bg-gradient-to-r from-slate-700/40 to-slate-600/40 backdrop-blur rounded-2xl p-4 border border-slate-600/50 shadow-lg">
+              <p className="text-slate-300 text-xs text-center mb-4 font-semibold uppercase tracking-wider">Choose Control Style</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <button
-                  onClick={() => setControlType('swipe')}
-                  className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
-                    controlType === 'swipe'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-105'
-                      : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
+                  onClick={() => setControlType(controlType === 'joystick' ? null : 'joystick')}
+                  className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 transform ${
+                    controlType === null || controlType === 'joystick'
+                      ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/40 scale-105'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60 active:scale-95'
                   }`}
                 >
-                  👆 Swipe
+                  <div className="text-xl mb-1">🕹️</div>
+                  <div>Joystick</div>
                 </button>
                 <button
-                  onClick={() => setControlType('joystick')}
-                  className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-1 ${
-                    controlType === 'joystick'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-105'
-                      : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
-                  }`}
-                >
-                  <Gamepad2 size={14} /> Stick
-                </button>
-                <button
-                  onClick={() => setControlType('dpad')}
-                  className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
+                  onClick={() => setControlType(controlType === 'dpad' ? null : 'dpad')}
+                  className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 transform ${
                     controlType === 'dpad'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-105'
-                      : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
+                      ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/40 scale-105'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60 active:scale-95'
                   }`}
                 >
-                  ↑↓← D-Pad
+                  <div className="text-xl mb-1">⬆️</div>
+                  <div>D-Pad</div>
                 </button>
                 <button
-                  onClick={() => setControlType('touchpad')}
-                  className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
+                  onClick={() => setControlType(controlType === 'touchpad' ? null : 'touchpad')}
+                  className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 transform ${
                     controlType === 'touchpad'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/30 scale-105'
-                      : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
+                      ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/40 scale-105'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60 active:scale-95'
                   }`}
                 >
-                  📱 Pad
+                  <div className="text-xl mb-1">📱</div>
+                  <div>Touchpad</div>
+                </button>
+                <button
+                  onClick={() => setControlType(controlType === 'swipe' ? null : 'swipe')}
+                  className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all duration-300 transform ${
+                    controlType === 'swipe'
+                      ? 'bg-gradient-to-br from-blue-600 to-cyan-500 text-white shadow-lg shadow-blue-500/40 scale-105'
+                      : 'bg-slate-700/60 text-slate-300 hover:bg-slate-600/60 active:scale-95'
+                  }`}
+                >
+                  <div className="text-xl mb-1">👆</div>
+                  <div>Swipe</div>
                 </button>
               </div>
             </div>
-          )}
-
-          {/* Joystick Controls */}
-          {isMobile && gameStarted && controlType === 'joystick' && (
-            <div className="flex justify-center mb-4 sm:mb-6">
-              <Joystick onDirectionChange={handleJoystickDirection} size={140} />
-            </div>
-          )}
-
-          {/* D-Pad Controls */}
-          {isMobile && gameStarted && controlType === 'dpad' && (
-            <div className="flex justify-center mb-4 sm:mb-6">
-              <DPad onDirectionChange={handleJoystickDirection} size={140} />
-            </div>
-          )}
-
-          {/* Touchpad Controls */}
-          {isMobile && gameStarted && controlType === 'touchpad' && (
-            <div className="flex justify-center mb-4 sm:mb-6">
-              <Touchpad onDirectionChange={handleJoystickDirection} width={280} height={200} />
-            </div>
-          )}
-
-          <div className="mt-4 sm:mt-6 text-center text-gray-300">
-            <p className="text-sm sm:text-base mb-1 sm:mb-2">
-              <span className="hidden sm:inline">Use Arrow Keys to Move</span>
-              <span className="sm:hidden">
-                {controlType === 'swipe' ? 'Swipe to Move' : (controlType === 'joystick' ? 'Use Joystick' : (controlType === 'dpad' ? 'Use D-Pad' : 'Swipe on Touchpad'))}
-              </span>
-            </p>
-            <p className="text-xs sm:text-sm">Collect all dots and avoid the ghosts!</p>
           </div>
+        )}
+
+        {/* Joystick Controls */}
+        {isJoystickActive && (
+          <div className="flex justify-center w-full mb-6 sm:mb-8">
+            <div className="flex flex-col items-center gap-3">
+              <Joystick onDirectionChange={handleJoystickDirection} size={160} />
+              <p className="text-xs text-slate-400 font-semibold uppercase">Use Joystick</p>
+            </div>
+          </div>
+        )}
+
+        {/* D-Pad Controls */}
+        {isDPadActive && (
+          <div className="flex justify-center w-full mb-6 sm:mb-8">
+            <div className="flex flex-col items-center gap-3">
+              <DPad onDirectionChange={handleJoystickDirection} size={160} />
+              <p className="text-xs text-slate-400 font-semibold uppercase">Use D-Pad</p>
+            </div>
+          </div>
+        )}
+
+        {/* Touchpad Controls */}
+        {isTouchpadActive && (
+          <div className="flex justify-center w-full mb-6 sm:mb-8">
+            <div className="flex flex-col items-center gap-3">
+              <Touchpad onDirectionChange={handleJoystickDirection} width={300} height={240} />
+              <p className="text-xs text-slate-400 font-semibold uppercase">Swipe to Move</p>
+            </div>
+          </div>
+        )}
+
+        {/* Swipe Instructions */}
+        {isSwipeActive && (
+          <div className="flex justify-center w-full mb-6 sm:mb-8">
+            <div className="flex flex-col items-center gap-4 px-4">
+              <div className="bg-gradient-to-br from-slate-700/40 to-slate-600/40 backdrop-blur rounded-2xl p-6 border border-slate-600/50 text-center max-w-sm">
+                <p className="text-3xl mb-3">👆</p>
+                <p className="text-sm text-slate-300 font-semibold">Swipe on the game area to move Pac-Man</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Instructions */}
+        <div className="mt-6 sm:mt-8 text-center text-gray-300">
+          <p className="text-sm sm:text-base mb-1 sm:mb-2 font-semibold">
+            {!isMobile ? (
+              'Use Arrow Keys to Move'
+            ) : isJoystickActive ? (
+              '🕹️ Move the Joystick'
+            ) : isDPadActive ? (
+              '⬆️ Press Arrow Buttons'
+            ) : isTouchpadActive ? (
+              '📱 Swipe on Touchpad'
+            ) : (
+              '👆 Swipe to Move'
+            )}
+          </p>
+          <p className="text-xs sm:text-sm">🟡 Collect all dots and avoid the ghosts! 👻</p>
         </div>
       </div>
     </div>

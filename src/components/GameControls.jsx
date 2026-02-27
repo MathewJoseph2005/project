@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export const Joystick = ({ onDirectionChange, size = 120 }) => {
   const containerRef = useRef(null);
@@ -108,48 +108,54 @@ export const Joystick = ({ onDirectionChange, size = 120 }) => {
   return (
     <div
       ref={containerRef}
-      className={`relative rounded-full flex items-center justify-center select-none transition-all duration-200 shadow-lg ${
+      className={`relative rounded-full flex items-center justify-center select-none transition-all duration-200 shadow-xl ${
         isActive
-          ? 'bg-gradient-to-br from-blue-600 to-cyan-500 shadow-blue-500/50 scale-105'
-          : 'bg-gradient-to-br from-slate-700/80 to-slate-600/80 hover:from-slate-700 hover:to-slate-600 shadow-slate-900/50'
+          ? 'bg-gradient-to-br from-blue-600 via-cyan-500 to-blue-700 shadow-blue-500/60 scale-110'
+          : 'bg-gradient-to-br from-slate-700/90 to-slate-600/90 hover:from-slate-700 hover:to-slate-600 shadow-slate-900/60 border border-slate-500/30'
       }`}
       style={{
         width: `${size}px`,
         height: `${size}px`,
         touchAction: 'none',
         cursor: 'grab',
-        border: '2px solid rgba(100, 116, 139, 0.3)'
+        boxShadow: isActive 
+          ? '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(34, 197, 94, 0.2)'
+          : '0 0 20px rgba(15, 23, 42, 0.8)'
       }}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Outer circle grid */}
-      <div className="absolute inset-0 rounded-full border border-slate-500/30 opacity-50" />
+      {/* Outer circle with gradient ring */}
+      <div className="absolute inset-0 rounded-full border-4 border-blue-500/20 opacity-60" />
+      <div className="absolute inset-1 rounded-full border border-blue-400/10 opacity-40" />
       
-      {/* Direction indicators */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-20 pointer-events-none">
-        <div className="text-center text-slate-400 font-semibold">
-          <div className="text-xs leading-none">↑</div>
-          <div className="flex gap-1">
-            <div className="text-xs">←</div>
-            <div className="text-xs">→</div>
+      {/* Direction indicators with better styling */}
+      <div className="absolute inset-0 flex items-center justify-center opacity-30 pointer-events-none">
+        <div className="text-center text-slate-200 font-bold">
+          <div className="text-sm leading-none mb-1">↑</div>
+          <div className="flex gap-2 justify-center">
+            <div className="text-sm">←</div>
+            <div className="text-sm">→</div>
           </div>
-          <div className="text-xs leading-none">↓</div>
+          <div className="text-sm leading-none mt-1">↓</div>
         </div>
       </div>
 
-      {/* Center stick */}
+      {/* Center stick with enhanced effects */}
       <div
-        className={`absolute rounded-full flex items-center justify-center font-bold text-white transition-all duration-100 ${
+        className={`absolute rounded-full flex items-center justify-center font-bold text-white transition-all duration-100 shadow-lg ${
           isActive 
-            ? 'bg-gradient-to-br from-cyan-300 to-blue-400 shadow-lg shadow-cyan-400/50' 
-            : 'bg-gradient-to-br from-slate-500 to-slate-600 shadow-sm'
+            ? 'bg-gradient-to-br from-cyan-300 via-blue-400 to-cyan-500 shadow-cyan-400/70' 
+            : 'bg-gradient-to-br from-slate-400 to-slate-500 shadow-slate-900/50'
         }`}
         style={{
           width: `${stickRadius * 2}px`,
           height: `${stickRadius * 2}px`,
           transform: `translate(${position.x}px, ${position.y}px)`,
-          fontSize: `${stickRadius}px`,
-          lineHeight: 1
+          fontSize: `${stickRadius * 0.8}px`,
+          lineHeight: 1,
+          boxShadow: isActive
+            ? `0 0 20px rgba(34, 211, 238, 0.8), inset -2px -2px 10px rgba(0, 0, 0, 0.3)`
+            : 'inset -2px -2px 5px rgba(0, 0, 0, 0.3)'
         }}
       >
         {getDirectionArrow()}
@@ -181,19 +187,21 @@ export const DPad = ({ onDirectionChange, size = 120 }) => {
       onMouseLeave={handleRelease}
       onTouchStart={(e) => { e.preventDefault(); handlePress(direction); }}
       onTouchEnd={handleRelease}
-      className={`absolute rounded-lg transition-all duration-150 font-bold text-white select-none shadow-md ${
+      className={`absolute rounded-xl transition-all duration-150 font-bold text-white select-none shadow-md active:shadow-inner ${
         active === direction
-          ? 'bg-gradient-to-br from-blue-500 to-cyan-400 shadow-lg shadow-blue-400/50 scale-95'
-          : 'bg-gradient-to-br from-slate-700/80 to-slate-600/80 hover:from-slate-700 hover:to-slate-600 shadow-slate-900/50 hover:shadow-md'
+          ? 'bg-gradient-to-br from-blue-500 via-cyan-400 to-blue-600 shadow-lg shadow-blue-400/60 scale-90'
+          : 'bg-gradient-to-br from-slate-700/90 to-slate-600/90 hover:from-slate-700 hover:to-slate-600 shadow-slate-900/50 hover:shadow-md border border-slate-500/20'
       }`}
       style={{
         width: `${buttonSize}px`,
         height: `${buttonSize}px`,
         top: `${top}px`,
         left: `${left}px`,
-        fontSize: `${buttonSize * 0.4}px`,
-        minHeight: '40px',
-        border: '1px solid rgba(100, 116, 139, 0.3)'
+        fontSize: `${buttonSize * 0.45}px`,
+        minHeight: '44px',
+        boxShadow: active === direction
+          ? `0 0 15px rgba(59, 130, 246, 0.6), inset -2px -2px 5px rgba(0, 0, 0, 0.3)`
+          : 'none'
       }}
     >
       {children}
@@ -279,21 +287,25 @@ export const Touchpad = ({ onDirectionChange, width = 200, height = 200 }) => {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className={`rounded-2xl border flex items-center justify-center select-none transition-all duration-200 shadow-lg ${
+      className={`rounded-3xl border flex items-center justify-center select-none transition-all duration-200 shadow-xl ${
         isActive
-          ? 'bg-gradient-to-br from-blue-600 to-cyan-500 border-cyan-400 shadow-blue-500/50 scale-105'
-          : 'bg-gradient-to-br from-slate-700/80 to-slate-600/80 border-slate-600/50 hover:from-slate-700 hover:to-slate-600 shadow-slate-900/50'
+          ? 'bg-gradient-to-br from-blue-600 via-cyan-500 to-blue-700 border-cyan-400 shadow-blue-500/60 scale-105'
+          : 'bg-gradient-to-br from-slate-700/90 to-slate-600/90 border-slate-600/50 hover:from-slate-700 hover:to-slate-600 shadow-slate-900/60'
       }`}
       style={{
         width: `${width}px`,
         height: `${height}px`,
         touchAction: 'none',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        boxShadow: isActive
+          ? '0 0 30px rgba(59, 130, 246, 0.6), 0 0 50px rgba(34, 197, 94, 0.2)'
+          : '0 0 20px rgba(15, 23, 42, 0.8)'
       }}
     >
-      <div className="text-center text-slate-300 pointer-events-none">
-        <div className="text-sm font-semibold uppercase tracking-widest opacity-70">Swipe</div>
-        <div className="text-4xl mt-2">👆</div>
+      <div className="text-center text-slate-200 pointer-events-none">
+        <div className="text-5xl mb-3 drop-shadow-lg">👆</div>
+        <div className="text-sm font-bold uppercase tracking-wider opacity-75">Swipe</div>
+        <div className="text-xs text-slate-300 mt-2">Move & Control</div>
       </div>
     </div>
   );

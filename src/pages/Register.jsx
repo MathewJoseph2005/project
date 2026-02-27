@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Link, Navigate } from '../components/Router';
 import { Gamepad2, User, Mail, Lock, CheckCircle2 } from 'lucide-react';

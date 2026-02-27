@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: pacman-game-server
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build --prefix ../
+    startCommand: NODE_ENV=production node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        scope: run
+      - key: JWT_SECRET
+        scope: run
+      - key: CORS_ORIGIN
+        scope: run

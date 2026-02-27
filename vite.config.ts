@@ -1,22 +1,21 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  server: {
+    middlewareMode: false,
+    port: 5173,
+    strictPort: false
+  },
   build: {
     target: 'es2020',
-    minify: 'terser',
+    minify: 'esbuild',
     cssMinify: true,
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-    },
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -25,11 +24,5 @@ export default defineConfig({
         },
       },
     },
-  },
-  server: {
-    middlewareMode: false,
-    headers: {
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    },
-  },
+  }
 });

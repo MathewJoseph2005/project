@@ -1,6 +1,8 @@
+import React from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { Router } from './components/Router';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Game } from './pages/Game';
@@ -12,6 +14,9 @@ function App() {
     <AuthProvider>
       <Router>
         {(currentPath) => {
+          if (currentPath === '/' || currentPath === '') {
+            return <Landing />;
+          }
           if (currentPath === '/login') {
             return <Login />;
           }
@@ -39,7 +44,7 @@ function App() {
               </ProtectedRoute>
             );
           }
-          return <Login />;
+          return <Landing />;
         }}
       </Router>
     </AuthProvider>
